@@ -1,0 +1,22 @@
+{
+  "name": "constelacion-vj-tool",
+  "version": "1.0.0",
+  "description": "Instrumento visual interactivo (VJ Tool) con Three.js, Flocking, Flow Fields y Web Audio API",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "threejs",
+    "vj",
+    "creative-coding",
+    "webgl",
+    "audio-reactive",
+    "boids",
+    "flow-fields"
+  ],
+  "author": "",
+  "license": "MIT"
+}

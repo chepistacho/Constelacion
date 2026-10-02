@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Constelación — VJ Tool</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 45%, #18032e 0%, #0a0117 50%, #010004 100%);
+      font-family: 'Courier New', monospace;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #overlay {
+      position: fixed;
+      bottom: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.4);
+      font-size: 11px;
+      text-align: center;
+      pointer-events: none;
+      letter-spacing: 2px;
+      user-select: none;
+      z-index: 10;
+    }
+
+    #audio-prompt {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.92);
+      z-index: 1000;
+      cursor: pointer;
+    }
+
+    #audio-prompt span {
+      color: #fff;
+      font-size: 18px;
+      letter-spacing: 4px;
+      opacity: 0.8;
+      animation: pulse 2s ease-in-out infinite;
+      text-transform: uppercase;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 0.4;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    /* ── BARRA DE PROGRESO DE AUDIO (PLAYER UI) ── */
+    #audio-player-ui {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 650px;
+      background: rgba(10, 16, 30, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(136, 187, 255, 0.25);
+      border-radius: 12px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      z-index: 100;
+      color: #88bbff;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(68, 136, 255, 0.15);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      user-select: none;
+    }
+
+    .player-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .player-btn:hover {
+      background: rgba(136, 187, 255, 0.3);
+      border-color: #88bbff;
+      transform: scale(1.08);
+      box-shadow: 0 0 10px rgba(136, 187, 255, 0.4);
+    }
+
+    .player-time {
+      font-size: 12px;
+      font-weight: bold;
+      color: rgba(255, 255, 255, 0.85);
+      letter-spacing: 1px;
+      font-family: 'Courier New', monospace;
+      flex-shrink: 0;
+      min-width: 42px;
+    }
+
+    .progress-bar-wrapper {
+      flex: 1;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4488ff, #00ffcc);
+      border-radius: 3px;
+      box-shadow: 0 0 8px #00ffcc;
+      transition: width 0.05s linear;
+    }
+
+    .progress-scrubber {
+      position: absolute;
+      top: 50%;
+      left: 0%;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      height: 12px;
+      background: #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #00ffcc, 0 0 4px #4488ff;
+      pointer-events: none;
+      transition: left 0.05s linear;
+    }
+
+    .track-info {
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: rgba(255, 255, 255, 0.5);
+      white-space: nowrap;
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="overlay">0-9, Q-T (CLÁSICOS) | A-K, Z-C (NUEVOS) | 'P': PERFORMANCE</div>
+  <div id="audio-prompt"><span>▶ CLICK PARA INICIAR ◀</span></div>
+
+  <!-- Barra de progreso interactiva del tema -->
+  <div id="audio-player-ui" style="display: none;">
+    <button id="btn-play-pause" class="player-btn" title="Play / Pausa">▶</button>
+    <span id="time-current" class="player-time">00:00</span>
+    <div id="progress-bar-wrapper" class="progress-bar-wrapper" title="Hacé click o arrastrá para saltar en el tema">
+      <div class="progress-bar-bg">
+        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+      </div>
+      <div id="progress-scrubber" class="progress-scrubber"></div>
+    </div>
+    <span id="time-total" class="player-time">00:00</span>
+    <span id="track-name" class="track-info">Constelación</span>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/",
+      "lil-gui": "https://cdn.jsdelivr.net/npm/lil-gui@0.19.2/dist/lil-gui.esm.min.js"
+    }
+  }
+  </script>
+
+  <script type="module">
+    // ═══════════════════════════════════════════════════════════════
+    //  CONSTELACIÓN — VJ TOOL
+    //  Flocking + Flow Field · Audio-Reactive · Keyboard Choreography
+    // ═══════════════════════════════════════════════════════════════
+    import * as THREE from 'three';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import GUI from 'lil-gui';
+
+    // ───────────────────────────── CONSTANTS ─────────────────────────────
+    const PARTICLE_COUNT = 800;
+    const HALF_COUNT = Math.floor(PARTICLE_COUNT / 2);
+    const LINE_MAX = PARTICLE_COUNT * 12;   // max line segments
+    const NEIGHBOR_DIST = 4.5;
+    const BOUNDS = 28;
+    const LERP_SPEED = 0.025;
+    const GRID_RES = 8;                     // flow field grid resolution
+
+    // ───────────────────────────── SIMPLEX NOISE (compact 3D) ───────────
+    // Attempt to use a direct implementation of 3D simplex noise
+    const SimplexNoise = (() => {
+      // Permutation table
+      const perm = new Uint8Array(512);
+      const grad3 = [
+        [1, 1, 0], [-1, 1, 0], [1, -1, 0], [-1, -1, 0],
+        [1, 0, 1], [-1, 0, 1], [1, 0, -1], [-1, 0, -1],
+        [0, 1, 1], [0, -1, 1], [0, 1, -1], [0, -1, -1]
+      ];
+
+      // Seed the permutation table
+      const p = [];
+      for (let i = 0; i < 256; i++) p[i] = i;
+      // Shuffle
+      for (let i = 255; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [p[i], p[j]] = [p[j], p[i]];
+      }
+      for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+
+      function dot3(g, x, y, z) { return g[0] * x + g[1] * y + g[2] * z; }
+
+      const F3 = 1.0 / 3.0;
+      const G3 = 1.0 / 6.0;
+
+      function noise3D(xin, yin, zin) {
+        let n0, n1, n2, n3;
+        const s = (xin + yin + zin) * F3;
+        const i = Math.floor(xin + s);
+        const j = Math.floor(yin + s);
+        const k = Math.floor(zin + s);
+        const t = (i + j + k) * G3;
+        const X0 = i - t, Y0 = j - t, Z0 = k - t;
+        const x0 = xin - X0, y0 = yin - Y0, z0 = zin - Z0;
+        let i1, j1, k1, i2, j2, k2;
+        if (x0 >= y0) {
+          if (y0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 1; k2 = 0; }
+          else if (x0 >= z0) { i1 = 1; j1 = 0; k1 = 0; i2 = 1; j2 = 0; k2 = 1; }
+          else { i1 = 0; j1 = 0; k1 = 1; i2 = 1; j2 = 0; k2 = 1; }
+        } else {
+          if (y0 < z0) { i1 = 0; j1 = 0; k1 = 1; i2 = 0; j2 = 1; k2 = 1; }
+          else if (x0 < z0) { i1 = 0; j1 = 1; k1 = 0; i2 = 0; j2 = 1; k2 = 1; }
+          else { i1 = 0; j1 = 1; k1 = 0; i2 = 1; j2 = 1; k2 = 0; }
+        }
+        const x1 = x0 - i1 + G3, y1 = y0 - j1 + G3, z1 = z0 - k1 + G3;
+        const x2 = x0 - i2 + 2 * G3, y2 = y0 - j2 + 2 * G3, z2 = z0 - k2 + 2 * G3;
+        const x3 = x0 - 1 + 3 * G3, y3 = y0 - 1 + 3 * G3, z3 = z0 - 1 + 3 * G3;
+        const ii = i & 255, jj = j & 255, kk = k & 255;
+        const gi0 = perm[ii + perm[jj + perm[kk]]] % 12;
+        const gi1 = perm[ii + i1 + perm[jj + j1 + perm[kk + k1]]] % 12;
+        const gi2 = perm[ii + i2 + perm[jj + j2 + perm[kk + k2]]] % 12;
+        const gi3 = perm[ii + 1 + perm[jj + 1 + perm[kk + 1]]] % 12;
+        let t0 = 0.6 - x0 * x0 - y0 * y0 - z0 * z0;
+        n0 = t0 < 0 ? 0 : (t0 *= t0, t0 * t0 * dot3(grad3[gi0], x0, y0, z0));
+        let t1 = 0.6 - x1 * x1 - y1 * y1 - z1 * z1;
+        n1 = t1 < 0 ? 0 : (t1 *= t1, t1 * t1 * dot3(grad3[gi1], x1, y1, z1));
+        let t2 = 0.6 - x2 * x2 - y2 * y2 - z2 * z2;
+        n2 = t2 < 0 ? 0 : (t2 *= t2, t2 * t2 * dot3(grad3[gi2], x2, y2, z2));
+        let t3 = 0.6 - x3 * x3 - y3 * y3 - z3 * z3;
+        n3 = t3 < 0 ? 0 : (t3 *= t3, t3 * t3 * dot3(grad3[gi3], x3, y3, z3));
+        return 32 * (n0 + n1 + n2 + n3);
+      }
+
+      return { noise3D };
+    })();
+
+
+    // ───────────────────────────── PHYSICS STATE ─────────────────────────
+    // Current (interpolated) values
+    const physics = {
+      separation: 1.5,
+      cohesion: 1.0,
+      alignment: 1.0,
+      flowMagnitude: 0.0,
+      maxSpeed: 0.12,
+      globalOpacity: 1.0,
+      lineOpacity: 0.35,
+      flockingEnabled: true,
+      linesEnabled: true,
+    };
+
+    // Target values (set by keyboard states, lerped towards)
+    const target = { ...physics };
+
+    // Flow field type: 'none' | 'directional' | 'perlin' | 'circular' | 'radial' | 'gravity' | 'sinusoidal'
+    let flowFieldType = 'none';
+    let flowFieldDirection = new THREE.Vector3(1, 0, 0);
+
+    // Group mode for states 4 & 7
+    let groupMode = 'none'; // 'none' | 'shield' | 'dna'
+
+    // Sun object
+    let sunVisible = false;
+
+    // State label
+    let currentState = 'Inicio';
+
+    // ───────────────────────────── AUDIO ENGINE (AUDIO FILE + SYNTH DEMO) ──
+    let audioCtx, analyser, dataArray, audioReady = false;
+    const audioElement = new Audio();
+    audioElement.loop = true;
+    audioElement.crossOrigin = 'anonymous';
+
+    let audioSource = null;
+    let synthGain = null; // demo synth fallback
+    let isPlaying = false;
+
+    const audioSettings = {
+      bassSensitivity: 2.5,
+      highSensitivity: 2.0,
+      volume: 0.8,
+    };
+
+    let bassLevel = 0;
+    let highLevel = 0;
+    let masterVolume = 0;
+
+    // UI Elements
+    function initAudioSystem() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      // Connect Audio Element to Web Audio API
+      audioSource = audioCtx.createMediaElementSource(audioElement);
+      audioSource.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      audioReady = true;
+    }
+
+    let isSynthActive = false;
+
+    // Demo Synth Beat fallback if Constelación.mp3 is not found in folder
+    function startDemoSynthBeat() {
+      if (isSynthActive) return;
+      initAudioSystem();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      isSynthActive = true;
+      synthGain = audioCtx.createGain();
+      synthGain.gain.value = 0.3;
+
+      // Kick oscillator (bass)
+      const kickInterval = setInterval(() => {
+        if (!isSynthActive) {
+          clearInterval(kickInterval);
+          return;
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.8 * audioSettings.volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(analyser);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+      }, 500);
+
+      // Hi-hat noise (highs)
+      const hatInterval = setInterval(() => {
+        if (!isSynthActive) {
+          clearInterval(hatInterval);
+          return;
+        }
+        const bufferSize = audioCtx.sampleRate * 0.04;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const output = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+
+        const whiteNoise = audioCtx.createBufferSource();
+        whiteNoise.buffer = buffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.value = 7000;
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.2 * audioSettings.volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+
+        whiteNoise.connect(filter);
+        filter.connect(gain);
+        gain.connect(analyser);
+        whiteNoise.start();
+      }, 250);
+
+      isPlaying = true;
+    }
+
+    const PROJECT_AUDIO_FILE = 'Constelacion.mp3';
+    const PROJECT_AUDIO_FALLBACK = 'Constelación.mp3';
+
+    let isUiVisible = false;
+
+    function setUiVisibility(visible) {
+      isUiVisible = visible;
+      if (typeof gui !== 'undefined' && gui) {
+        if (typeof gui.show === 'function') {
+          gui.show(visible);
+        } else if (gui.domElement) {
+          gui.domElement.style.display = visible ? 'block' : 'none';
+        }
+      }
+      const overlayEl = document.getElementById('overlay');
+      if (overlayEl) {
+        overlayEl.style.display = visible ? 'block' : 'none';
+      }
+      const playerUi = document.getElementById('audio-player-ui');
+      if (playerUi) {
+        playerUi.style.display = visible ? 'flex' : 'none';
+      }
+    }
+
+    function formatTime(seconds) {
+      if (isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '00:00';
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    let isDraggingProgress = false;
+
+    function seekAudio(e) {
+      const wrapper = document.getElementById('progress-bar-wrapper');
+      if (!wrapper || !audioElement.duration || !isFinite(audioElement.duration)) return;
+      const rect = wrapper.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const percent = Math.max(0, Math.min(1, clickX / rect.width));
+      audioElement.currentTime = percent * audioElement.duration;
+      updateAudioProgressUI();
+    }
+
+    function updateAudioProgressUI() {
+      const fillEl = document.getElementById('progress-bar-fill');
+      const scrubberEl = document.getElementById('progress-scrubber');
+      const timeCurEl = document.getElementById('time-current');
+      const timeTotEl = document.getElementById('time-total');
+      const btnPlay = document.getElementById('btn-play-pause');
+
+      if (btnPlay) {
+        btnPlay.textContent = audioElement.paused ? '▶' : '⏸';
+      }
+
+      if (audioElement.src && !isSynthActive && audioElement.duration && isFinite(audioElement.duration)) {
+        const cur = audioElement.currentTime || 0;
+        const dur = audioElement.duration || 0;
+        const pct = (cur / dur) * 100;
+
+        if (!isDraggingProgress) {
+          if (fillEl) fillEl.style.width = pct + '%';
+          if (scrubberEl) scrubberEl.style.left = pct + '%';
+        }
+        if (timeCurEl) timeCurEl.textContent = formatTime(cur);
+        if (timeTotEl) timeTotEl.textContent = formatTime(dur);
+
+        if (typeof guiParams !== 'undefined' && guiParams) {
+          guiParams.audioTime = `${formatTime(cur)} / ${formatTime(dur)}`;
+        }
+      } else if (isSynthActive) {
+        if (fillEl) fillEl.style.width = '100%';
+        if (scrubberEl) scrubberEl.style.left = '100%';
+        if (timeCurEl) timeCurEl.textContent = formatTime(audioCtx ? audioCtx.currentTime : 0);
+        if (timeTotEl) timeTotEl.textContent = 'DEMO';
+        if (typeof guiParams !== 'undefined' && guiParams) {
+          guiParams.audioTime = 'Sintetizador Beat Demo';
+        }
+      }
+    }
+
+    // Direct binding for player controls
+    window.addEventListener('DOMContentLoaded', () => {
+      const wrapper = document.getElementById('progress-bar-wrapper');
+      if (wrapper) {
+        wrapper.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          isDraggingProgress = true;
+          seekAudio(e);
+        });
+      }
+      const btnPlay = document.getElementById('btn-play-pause');
+      if (btnPlay) {
+        btnPlay.addEventListener('click', (e) => {
+          e.stopPropagation();
+          togglePlayPause();
+        });
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (isDraggingProgress) seekAudio(e);
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDraggingProgress = false;
+    });
+
+    function applyPreset(key) {
+      const preset = statePresets[key];
+      if (!preset) return;
+      currentState = preset.name;
+      if (typeof guiParams !== 'undefined' && guiParams) guiParams.state = preset.name;
+
+      target.separation = preset.separation;
+      target.cohesion = preset.cohesion;
+      target.alignment = preset.alignment;
+      target.flowMagnitude = preset.flowMagnitude;
+      target.maxSpeed = preset.maxSpeed;
+      target.globalOpacity = preset.globalOpacity;
+      target.lineOpacity = preset.lineOpacity;
+      target.flockingEnabled = preset.flockingEnabled;
+      target.linesEnabled = preset.linesEnabled;
+
+      flowFieldType = preset.flowType;
+      groupMode = preset.groupMode;
+      brownianActive = !!preset.brownian;
+      vibrationActive = !!preset.vibration;
+      forceAlignmentUpActive = !!preset.forceAlignmentUp;
+      currentLerpSpeed = preset.lerpOverride || LERP_SPEED;
+      currentLineColor = preset.lineColor || null;
+
+      if (preset.impulseBurst) {
+        for (let i = 0; i < PARTICLE_COUNT * 3; i++) {
+          velocities[i] += (Math.random() - 0.5) * 0.9;
+        }
+      }
+
+      if (preset.impulseGustX) {
+        const dir = Math.random() > 0.5 ? 1 : -1;
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          velocities[i * 3] += dir * (0.6 + Math.random() * 0.6);
+        }
+      }
+
+      if (preset.sunVisible && !sunVisible) {
+        sunVisible = true;
+        if (typeof sunMesh !== 'undefined' && sunMesh) sunMesh.visible = true;
+      } else if (!preset.sunVisible && sunVisible) {
+        sunVisible = false;
+      }
+    }
+
+    function loadProjectAudioFile() {
+      const promptEl = document.getElementById('audio-prompt');
+      if (promptEl) promptEl.style.display = 'none';
+
+      // Mostrar UI de monitoreo tras el click inicial
+      setUiVisibility(true);
+
+      // Establecer el estado inicial a '0' (Intro) al iniciar
+      applyPreset('0');
+
+      initAudioSystem();
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      audioElement.src = PROJECT_AUDIO_FILE;
+      audioElement.volume = audioSettings.volume;
+
+      audioElement.play().then(() => {
+        isPlaying = true;
+      }).catch(() => {
+        // Reintentar con nombre con tilde
+        audioElement.src = PROJECT_AUDIO_FALLBACK;
+        audioElement.play().then(() => {
+          isPlaying = true;
+        }).catch(err => {
+          console.warn('Constelacion.mp3 no encontrado. Usando audio demo sintetizado.', err);
+          audioElement.removeAttribute('src');
+          audioElement.load();
+          startDemoSynthBeat();
+        });
+      });
+    }
+
+    function togglePlayPause() {
+      if (!audioReady) {
+        loadProjectAudioFile();
+        return;
+      }
+      if (audioElement.src) {
+        if (audioElement.paused) {
+          audioElement.play();
+          isPlaying = true;
+        } else {
+          audioElement.pause();
+          isPlaying = false;
+        }
+      }
+    }
+
+    function updateAudio() {
+      if (!audioReady) return;
+      analyser.getByteFrequencyData(dataArray);
+      const binCount = dataArray.length;
+      const bassEnd = Math.floor(binCount * 0.15);
+      const highStart = Math.floor(binCount * 0.55);
+
+      let bassSum = 0, highSum = 0, totalSum = 0;
+      for (let i = 0; i < binCount; i++) {
+        const v = dataArray[i] / 255;
+        totalSum += v;
+        if (i < bassEnd) bassSum += v;
+        if (i >= highStart) highSum += v;
+      }
+      bassLevel = (bassSum / bassEnd) * audioSettings.bassSensitivity;
+      highLevel = (highSum / (binCount - highStart)) * audioSettings.highSensitivity;
+      masterVolume = totalSum / binCount;
+
+      updateAudioProgressUI();
+    }
+
+    // ───────────────────────────── THREE.JS SETUP ───────────────────────
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 1);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    // Textura de degradado atmosférico cósmico (Púrpura noche profundo)
+    function createAtmosphericBackgroundTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createRadialGradient(256, 230, 20, 256, 256, 360);
+      grad.addColorStop(0, '#1d0438');   // Centro sutil púrpura oscuro
+      grad.addColorStop(0.40, '#0e011f'); // Púrpura noche profundo
+      grad.addColorStop(0.80, '#05000d'); // Fondo cósmico noche
+      grad.addColorStop(1.0, '#010004'); // Bordes casi negro
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    scene.background = createAtmosphericBackgroundTexture();
+    scene.fog = new THREE.FogExp2(0x0e011f, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 0, 24);
+
+    // Orbital rotation state - Cámara inmersiva cercana al centro
+    let cameraAngle = 0;
+    const cameraRadius = 24;
+    const cameraOrbitSpeed = 0.015; // radians per second
+    let cameraElevation = 0.3;     // slight tilt
+
+    // Ambient & point lights inspiradas en la atmósfera púrpura de la imagen
+    scene.add(new THREE.AmbientLight(0x2d0a54, 0.8));
+    const pointLight = new THREE.PointLight(0xa64dff, 1.8, 100);
+    pointLight.position.set(0, 10, 20);
+    scene.add(pointLight);
+
+    // ───────────────────────────── PARTICLES (InstancedMesh - Esferas) ──
+    const sphereGeo = new THREE.SphereGeometry(0.026, 12, 12);
+    const particleMat = new THREE.MeshStandardMaterial({
+      color: 0x7722cc,
+      emissive: 0xaa22dd,
+      emissiveIntensity: 1.6,
+      metalness: 0.1,
+      roughness: 0.2,
+      transparent: true,
+      opacity: 1.0,
+    });
+
+    const instancedMesh = new THREE.InstancedMesh(sphereGeo, particleMat, PARTICLE_COUNT);
+    instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+    // Per-instance color basados en la imagen de referencia:
+    // - Grupo A: Rosa Magenta / Pink (Pico resplandeciente)
+    // - Grupo B: Violeta Eléctrico / Púrpura Cósmico
+    // - Impares (Agudos): Lavanda Claro / Lirio Helado
+    const instanceColors = new Float32Array(PARTICLE_COUNT * 3);
+    const halfCount = Math.floor(PARTICLE_COUNT / 2);
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      if (i < halfCount) {
+        // Grupo A: Rosa Magenta Resplandeciente (Pico de la imagen)
+        instanceColors[i * 3]     = 0.95 + Math.random() * 0.05; // R
+        instanceColors[i * 3 + 1] = 0.40 + Math.random() * 0.35; // G
+        instanceColors[i * 3 + 2] = 0.80 + Math.random() * 0.20; // B
+      } else {
+        // Grupo B: Violeta Eléctrico / Púrpura Profundo (Masa cósmica)
+        instanceColors[i * 3]     = 0.45 + Math.random() * 0.25; // R
+        instanceColors[i * 3 + 1] = 0.10 + Math.random() * 0.20; // G
+        instanceColors[i * 3 + 2] = 0.90 + Math.random() * 0.10; // B
+      }
+
+      // Toques de lavanda estrellado para partículas impares
+      if (i % 2 !== 0 && Math.random() > 0.3) {
+        instanceColors[i * 3]     = 0.85 + Math.random() * 0.15; // R
+        instanceColors[i * 3 + 1] = 0.70 + Math.random() * 0.25; // G
+        instanceColors[i * 3 + 2] = 1.0;                        // B
+      }
+    }
+    instancedMesh.instanceColor = new THREE.InstancedBufferAttribute(instanceColors, 3);
+    scene.add(instancedMesh);
+
+    // ───────────────────────────── BOID DATA ────────────────────────────
+    const positions = new Float32Array(PARTICLE_COUNT * 3);
+    const velocities = new Float32Array(PARTICLE_COUNT * 3);
+    const scales = new Float32Array(PARTICLE_COUNT);  // per-boid scale
+
+    const dummy = new THREE.Matrix4();
+    const _pos = new THREE.Vector3();
+    const _vel = new THREE.Vector3();
+    const _sep = new THREE.Vector3();
+    const _ali = new THREE.Vector3();
+    const _coh = new THREE.Vector3();
+    const _flow = new THREE.Vector3();
+    const _diff = new THREE.Vector3();
+    const _tmp = new THREE.Vector3();
+
+    // Initialize positions randomly in 3D Cartesian space (no spherical silhouette)
+    const spanX = BOUNDS * 1.6;
+    const spanY = BOUNDS * 1.2;
+    const spanZ = BOUNDS * 1.2;
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      positions[i * 3]     = (Math.random() - 0.5) * spanX;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * spanY;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * spanZ;
+
+      velocities[i * 3]     = (Math.random() - 0.5) * 0.1;
+      velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+      velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
+
+      scales[i] = 1.0;
+    }
+
+    // ───────────────────────────── LINES ────────────────────────────────
+    const linePositions = new Float32Array(LINE_MAX * 6); // 2 vertices * 3 coords per segment
+    const lineColors = new Float32Array(LINE_MAX * 6); // 2 vertices * 3 color per segment
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3).setUsage(THREE.DynamicDrawUsage));
+    lineGeo.setAttribute('color', new THREE.BufferAttribute(lineColors, 3).setUsage(THREE.DynamicDrawUsage));
+
+    const lineMat = new THREE.LineBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const lineSegments = new THREE.LineSegments(lineGeo, lineMat);
+    scene.add(lineSegments);
+
+    // ───────────────────────────── SUN OBJECT ───────────────────────────
+    const sunGeo = new THREE.SphereGeometry(1.6, 48, 48);
+    const sunMat = new THREE.MeshStandardMaterial({
+      color: 0x9b42f5,
+      emissive: 0x731ad1,
+      emissiveIntensity: 2.8,
+      metalness: 0.1,
+      roughness: 0.1,
+      transparent: true,
+      opacity: 0.0,
+    });
+    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    sunMesh.position.set(0, 0, 0);
+    sunMesh.visible = false;
+    scene.add(sunMesh);
+
+    const sunLight = new THREE.PointLight(0x8a2be2, 0, 60);
+    sunLight.position.set(0, 0, 0);
+    scene.add(sunLight);
+
+    // ───────────────────────────── STATE PRESETS ─────────────────────────
+    const statePresets = {
+      '0': { // Intro — static, twinkle only
+        name: 'Intro',
+        separation: 0, cohesion: 0, alignment: 0,
+        flowMagnitude: 0, maxSpeed: 0,
+        globalOpacity: 1, lineOpacity: 0, flockingEnabled: false, linesEnabled: false,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+      },
+      '1': { // Enojado
+        name: 'Enojado',
+        separation: 6.0, cohesion: 0, alignment: 0.2,
+        flowMagnitude: 0.5, maxSpeed: 0.35,
+        globalOpacity: 1, lineOpacity: 0.5, flockingEnabled: true, linesEnabled: true,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+        lineColor: [1.0, 0.3, 0.05],
+      },
+      '2': { // Reprimido
+        name: 'Reprimido',
+        separation: 0.4, cohesion: 8.0, alignment: 0.3,
+        flowMagnitude: 0, maxSpeed: 0.04,
+        globalOpacity: 1, lineOpacity: 0.4, flockingEnabled: true, linesEnabled: true,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+      },
+      '3': { // Decidido
+        name: 'Decidido',
+        separation: 1.2, cohesion: 0.5, alignment: 6.0,
+        flowMagnitude: 2.5, maxSpeed: 0.18,
+        globalOpacity: 1, lineOpacity: 0.5, flockingEnabled: true, linesEnabled: true,
+        flowType: 'directional', groupMode: 'none', sunVisible: false,
+      },
+      '4': { // Cuidar al otro
+        name: 'Cuidar al otro',
+        separation: 1.5, cohesion: 1.2, alignment: 1.0,
+        flowMagnitude: 1.5, maxSpeed: 0.18,
+        globalOpacity: 1, lineOpacity: 0.55, flockingEnabled: true, linesEnabled: true,
+        flowType: 'circular', groupMode: 'shield', sunVisible: false,
+      },
+      '5': { // Sol / Estribillo
+        name: 'Sol / Estribillo',
+        separation: 1.2, cohesion: 0, alignment: 0,
+        flowMagnitude: 3.0, maxSpeed: 0.15,
+        globalOpacity: 1, lineOpacity: 0.3, flockingEnabled: false, linesEnabled: true,
+        flowType: 'circular', groupMode: 'none', sunVisible: true,
+      },
+      '6': { // Tranquilo
+        name: 'Tranquilo',
+        separation: 1.0, cohesion: 0.8, alignment: 0.8,
+        flowMagnitude: 1.2, maxSpeed: 0.08,
+        globalOpacity: 1, lineOpacity: 0.25, flockingEnabled: true, linesEnabled: true,
+        flowType: 'perlin', groupMode: 'none', sunVisible: false,
+      },
+      '7': { // Dos en sintonía
+        name: 'Dos en sintonía',
+        separation: 1.0, cohesion: 1.5, alignment: 3.0,
+        flowMagnitude: 1.5, maxSpeed: 0.12,
+        globalOpacity: 1, lineOpacity: 0.4, flockingEnabled: true, linesEnabled: true,
+        flowType: 'sinusoidal', groupMode: 'dna', sunVisible: false,
+      },
+      '8': { // Hacer daño
+        name: 'Hacer daño',
+        separation: -3.0, cohesion: 2.0, alignment: 0.5,
+        flowMagnitude: 0.3, maxSpeed: 0.25,
+        globalOpacity: 1, lineOpacity: 0.6, flockingEnabled: true, linesEnabled: true,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+        lineColor: [1.0, 0.1, 0.1],
+      },
+      '9': { // Volver a creer
+        name: 'Volver a creer',
+        separation: 1.2, cohesion: 1.5, alignment: 1.5,
+        flowMagnitude: 0.5, maxSpeed: 0.08,
+        globalOpacity: 1, lineOpacity: 0.4, flockingEnabled: true, linesEnabled: true,
+        flowType: 'perlin', groupMode: 'none', sunVisible: false,
+        lerpOverride: 0.005, // extra slow transition
+        lineColor: [1.0, 0.7, 0.3],
+      },
+      'q': { // Agradecimiento - El Halo
+        name: 'Agradecimiento - El Halo',
+        separation: 1.2, cohesion: 1.0, alignment: 1.0,
+        flowMagnitude: 2.0, maxSpeed: 0.04,
+        globalOpacity: 1, lineOpacity: 0.4, flockingEnabled: true, linesEnabled: true,
+        flowType: 'haloRing', groupMode: 'none', sunVisible: false,
+        lineColor: [1.0, 0.8, 0.35],
+      },
+      'w': { // Amarga realidad
+        name: 'Amarga realidad',
+        separation: 0.5, cohesion: 0, alignment: 0,
+        flowMagnitude: 3.0, maxSpeed: 0.2,
+        globalOpacity: 1, lineOpacity: 0.2, flockingEnabled: false, linesEnabled: true,
+        flowType: 'gravity', groupMode: 'none', sunVisible: false,
+      },
+      'e': { // Alejarse
+        name: 'Alejarse',
+        separation: 2.0, cohesion: 0, alignment: 0,
+        flowMagnitude: 2.0, maxSpeed: 0.1,
+        globalOpacity: 0, lineOpacity: 0, flockingEnabled: true, linesEnabled: true,
+        flowType: 'radial', groupMode: 'none', sunVisible: false,
+      },
+      'r': { // No puedo sin vos
+        name: 'No puedo sin vos',
+        separation: 0, cohesion: 0, alignment: 0,
+        flowMagnitude: 0, maxSpeed: 0.45,
+        globalOpacity: 1, lineOpacity: 0.5, flockingEnabled: false, linesEnabled: true,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+        brownian: true,
+      },
+      't': { // Outro
+        name: 'Outro',
+        separation: 0, cohesion: 0, alignment: 0,
+        flowMagnitude: 0, maxSpeed: 0,
+        globalOpacity: 0, lineOpacity: 0, flockingEnabled: false, linesEnabled: false,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+        lerpOverride: 0.008,
+      },
+
+      // ── NUEVOS ESTADOS INTERMEDIOS (Versos y Transiciones) ──
+      'a': { // Frío Pasado
+        name: 'Frío Pasado',
+        separation: 1.0, cohesion: 1.0, alignment: 1.0,
+        flowMagnitude: 0, maxSpeed: 0.002,
+        globalOpacity: 1, lineOpacity: 0.5, flockingEnabled: true, linesEnabled: true,
+        flowType: 'perlin', groupMode: 'none', sunVisible: false,
+        lineColor: [0.35, 0.75, 1.0],
+        lerpOverride: 0.08,
+      },
+      's': { // Fuck Love / Quiebre
+        name: 'Fuck Love / Quiebre',
+        separation: 10.0, cohesion: 0, alignment: 0,
+        flowMagnitude: 0, maxSpeed: 0.45,
+        globalOpacity: 1, lineOpacity: 0.6, flockingEnabled: true, linesEnabled: true,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+        lineColor: [1.0, 0.2, 0.2],
+        impulseBurst: true,
+      },
+      'd': { // Apagón Mental
+        name: 'Apagón Mental',
+        separation: 0.8, cohesion: 0.5, alignment: 0.3,
+        flowMagnitude: 0, maxSpeed: 0.03,
+        globalOpacity: 1, lineOpacity: 0.0, flockingEnabled: true, linesEnabled: true,
+        lerpOverride: 0.12, // Transición rápida pero fluida
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+      },
+      'f': { // Renuncia
+        name: 'Renuncia',
+        separation: 1.2, cohesion: 1.0, alignment: 1.0,
+        flowMagnitude: 1.0, maxSpeed: 0.22,
+        globalOpacity: 1, lineOpacity: 0.4, flockingEnabled: true, linesEnabled: true,
+        flowType: 'none', groupMode: 'splitX', sunVisible: false,
+      },
+      'g': { // Arrepentimiento
+        name: 'Arrepentimiento',
+        separation: 0.5, cohesion: 4.0, alignment: 0,
+        flowMagnitude: 3.0, maxSpeed: 0.05,
+        globalOpacity: 1, lineOpacity: 0.35, flockingEnabled: true, linesEnabled: true,
+        flowType: 'diagonalDown', groupMode: 'none', sunVisible: false,
+      },
+      'h': { // Imanes Oxidados
+        name: 'Imanes Oxidados',
+        separation: 8.0, cohesion: 8.0, alignment: 0.5,
+        flowMagnitude: 0, maxSpeed: 0.25,
+        globalOpacity: 1, lineOpacity: 0.5, flockingEnabled: true, linesEnabled: true,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+        vibration: true,
+      },
+      'j': { // El Escudo
+        name: 'El Escudo',
+        separation: 1.2, cohesion: 1.5, alignment: 1.0,
+        flowMagnitude: 2.0, maxSpeed: 0.2,
+        globalOpacity: 1, lineOpacity: 0.5, flockingEnabled: true, linesEnabled: true,
+        flowType: 'radialIn', groupMode: 'shieldBounce', sunVisible: false,
+      },
+      'k': { // Cuesta Arriba
+        name: 'Cuesta Arriba',
+        separation: 1.0, cohesion: 1.0, alignment: 5.0,
+        flowMagnitude: 4.0, maxSpeed: 0.04,
+        globalOpacity: 1, lineOpacity: 0.4, flockingEnabled: true, linesEnabled: true,
+        flowType: 'gravity', groupMode: 'none', sunVisible: false,
+        forceAlignmentUp: true,
+      },
+
+      // ── NUEVOS ESTADOS PARA EL REFRÁN (Pico Emocional) ──
+      'z': { // El Latido
+        name: 'El Latido',
+        separation: 1.0, cohesion: 3.5, alignment: 0.5,
+        flowMagnitude: 3.5, maxSpeed: 0.15,
+        globalOpacity: 1, lineOpacity: 0.6, flockingEnabled: true, linesEnabled: true,
+        flowType: 'pulsingRadial', groupMode: 'none', sunVisible: false,
+      },
+      'x': { // El Borrón
+        name: 'El Borrón',
+        separation: 2.0, cohesion: 0, alignment: 0,
+        flowMagnitude: 8.0, maxSpeed: 0.5,
+        globalOpacity: 1, lineOpacity: 0.3, flockingEnabled: true, linesEnabled: true,
+        flowType: 'gustX', groupMode: 'none', sunVisible: false,
+        impulseGustX: true,
+      },
+      'c': { // La Burbuja
+        name: 'La Burbuja',
+        separation: 1.5, cohesion: 1.5, alignment: 1.0,
+        flowMagnitude: 1.0, maxSpeed: 0.03,
+        globalOpacity: 1, lineOpacity: 0.4, flockingEnabled: true, linesEnabled: true,
+        flowType: 'circular', groupMode: 'none', sunVisible: false,
+        lineColor: [1.0, 0.85, 0.4],
+      },
+    };
+
+    // Currently active special behavior flags
+    let brownianActive = false;
+    let vibrationActive = false;
+    let forceAlignmentUpActive = false;
+    let currentLerpSpeed = LERP_SPEED;
+    let currentLineColor = null; // null = default white-blue
+
+    // ───────────────────────────── GUI ───────────────────────────────────
+    const guiParams = {
+      state: 'Inicio',
+      audioTime: '00:00 / 00:00',
+      separation: physics.separation,
+      cohesion: physics.cohesion,
+      alignment: physics.alignment,
+      flowMagnitude: physics.flowMagnitude,
+      maxSpeed: physics.maxSpeed,
+      bassSensitivity: audioSettings.bassSensitivity,
+      highSensitivity: audioSettings.highSensitivity,
+    };
+
+    const gui = new GUI({ title: '🎛 CONSTELACIÓN', width: 280 });
+
+    // State display
+    const stateFolder = gui.addFolder('Estado Activo');
+    stateFolder.add(guiParams, 'state').name('Estado').listen().disable();
+    stateFolder.open();
+
+    // Physics controls (Direct live control & preset monitoring)
+    const physicsFolder = gui.addFolder('Física (Live)');
+    physicsFolder.add(guiParams, 'separation', -5, 10, 0.01).name('Separación').listen().onChange(val => { target.separation = val; });
+    physicsFolder.add(guiParams, 'cohesion', 0, 10, 0.01).name('Cohesión').listen().onChange(val => { target.cohesion = val; });
+    physicsFolder.add(guiParams, 'alignment', 0, 8, 0.01).name('Alineación').listen().onChange(val => { target.alignment = val; });
+    physicsFolder.add(guiParams, 'flowMagnitude', 0, 5, 0.01).name('Flow Field').listen().onChange(val => { target.flowMagnitude = val; });
+    physicsFolder.add(guiParams, 'maxSpeed', 0, 0.6, 0.001).name('Vel. Máxima').listen().onChange(val => { target.maxSpeed = val; });
+    physicsFolder.open();
+
+    // Audio Controls
+    const audioFolder = gui.addFolder('Audio');
+    audioFolder.add(guiParams, 'audioTime').name('Tiempo').listen().disable();
+    audioFolder.add({ playPause: () => togglePlayPause() }, 'playPause').name('▶ / ⏸ Play-Pause');
+    audioFolder.add(audioSettings, 'volume', 0, 1, 0.05).name('Volumen').onChange(v => { audioElement.volume = v; });
+    audioFolder.add(guiParams, 'bassSensitivity', 0, 6, 0.1).name('Sens. Bajos').onChange(v => audioSettings.bassSensitivity = v);
+    audioFolder.add(guiParams, 'highSensitivity', 0, 6, 0.1).name('Sens. Agudos').onChange(v => audioSettings.highSensitivity = v);
+    audioFolder.open();
+
+    // Ocultar UI de monitoreo e instrucciones inicialmente (aparecen tras el click)
+    setUiVisibility(false);
+
+    // ───────────────────────────── KEYBOARD ──────────────────────────────
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+
+      // Tecla P: Alternar modo performance (Ocultar / Mostrar toda la UI)
+      if (key === 'p') {
+        setUiVisibility(!isUiVisible);
+        return;
+      }
+
+      applyPreset(key);
+    });
+
+    // ───────────────────────────── FLOW FIELD FUNCTIONS ──────────────────
+    function getFlowVector(x, y, z, time) {
+      _flow.set(0, 0, 0);
+
+      switch (flowFieldType) {
+        case 'directional':
+          _flow.copy(flowFieldDirection).normalize();
+          break;
+
+        case 'perlin': {
+          const scale = 0.08;
+          const t = time * 0.15;
+          _flow.set(
+            SimplexNoise.noise3D(x * scale + t, y * scale, z * scale),
+            SimplexNoise.noise3D(x * scale, y * scale + t, z * scale),
+            SimplexNoise.noise3D(x * scale, y * scale, z * scale + t)
+          );
+          break;
+        }
+
+        case 'circular': {
+          // Tangential orbit around Y axis
+          const dist = Math.sqrt(x * x + z * z) + 0.001;
+          _flow.set(-z / dist, 0, x / dist);
+          // Add slight inward pull
+          _flow.x -= x / dist * 0.15;
+          _flow.z -= z / dist * 0.15;
+          break;
+        }
+
+        case 'radial': {
+          // Outward from center
+          const len = Math.sqrt(x * x + y * y + z * z) + 0.001;
+          _flow.set(x / len, y / len, z / len);
+          break;
+        }
+
+        case 'gravity':
+          _flow.set(0, -1, 0);
+          break;
+
+        case 'diagonalDown':
+          _flow.set(-0.707, -0.707, 0);
+          break;
+
+        case 'gustX':
+          _flow.set(1.0, 0, 0);
+          break;
+
+        case 'radialIn': {
+          const len = Math.sqrt(x * x + y * y + z * z) + 0.001;
+          _flow.set(-x / len, -y / len, -z / len);
+          break;
+        }
+
+        case 'haloRing': {
+          const dist = Math.sqrt(x * x + z * z) + 0.001;
+          const targetR = 14.0;
+          const tangX = -z / dist;
+          const tangZ = x / dist;
+          const ringForce = (dist - targetR) * 0.15;
+          const radX = -(x / dist) * ringForce;
+          const radZ = -(z / dist) * ringForce;
+          _flow.set(tangX + radX, Math.sin(x * 0.1 + time * 0.5) * 0.08, tangZ + radZ);
+          break;
+        }
+
+        case 'pulsingRadial': {
+          const len = Math.sqrt(x * x + y * y + z * z) + 0.001;
+          const pulse = Math.sin(time * 8.0);
+          _flow.set((x / len) * pulse, (y / len) * pulse, (z / len) * pulse);
+          break;
+        }
+
+        case 'sinusoidal': {
+          const freq = 0.3;
+          const t = time * 0.5;
+          _flow.set(
+            Math.sin(y * freq + t),
+            Math.cos(x * freq + t) * 0.5,
+            Math.sin(z * freq + t * 0.7)
+          );
+          break;
+        }
+      }
+
+      return _flow;
+    }
+
+    // ───────────────────────────── PHYSICS UPDATE ───────────────────────
+    function updatePhysics(time, dt) {
+      // LFO breathing
+      const breathe = Math.sin(time * 0.4) * 0.15;
+
+      // Lerp physics toward targets
+      const lerpAmt = 1.0 - Math.pow(1.0 - currentLerpSpeed, dt * 60);
+      physics.separation = THREE.MathUtils.lerp(physics.separation, target.separation, lerpAmt);
+      physics.cohesion = THREE.MathUtils.lerp(physics.cohesion, target.cohesion, lerpAmt);
+      physics.alignment = THREE.MathUtils.lerp(physics.alignment, target.alignment, lerpAmt);
+      physics.flowMagnitude = THREE.MathUtils.lerp(physics.flowMagnitude, target.flowMagnitude, lerpAmt);
+      physics.maxSpeed = THREE.MathUtils.lerp(physics.maxSpeed, target.maxSpeed, lerpAmt);
+      physics.globalOpacity = THREE.MathUtils.lerp(physics.globalOpacity, target.globalOpacity, lerpAmt);
+      physics.lineOpacity = THREE.MathUtils.lerp(physics.lineOpacity, target.lineOpacity, lerpAmt);
+
+      // Update GUI monitors
+      guiParams.separation = physics.separation;
+      guiParams.cohesion = physics.cohesion;
+      guiParams.alignment = physics.alignment;
+      guiParams.flowMagnitude = physics.flowMagnitude;
+      guiParams.maxSpeed = physics.maxSpeed;
+
+      // Effective weights with breathing
+      const effSep = physics.separation + breathe;
+      const effCoh = physics.cohesion - breathe * 0.5;
+      const effMax = Math.max(physics.maxSpeed, 0.001);
+
+      // Group centers for shield / dna modes
+      let groupACenter = null;
+      if (groupMode === 'shield' || groupMode === 'dna') {
+        // Group A = first half, compute center
+        groupACenter = new THREE.Vector3();
+        for (let i = 0; i < HALF_COUNT; i++) {
+          groupACenter.x += positions[i * 3];
+          groupACenter.y += positions[i * 3 + 1];
+          groupACenter.z += positions[i * 3 + 2];
+        }
+        groupACenter.divideScalar(HALF_COUNT);
+      }
+
+      const half = HALF_COUNT;
+
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+        _pos.set(positions[ix], positions[iy], positions[iz]);
+        _vel.set(velocities[ix], velocities[iy], velocities[iz]);
+
+        // Brownian mode: random impulses
+        if (brownianActive) {
+          velocities[ix] += (Math.random() - 0.5) * 0.08;
+          velocities[iy] += (Math.random() - 0.5) * 0.08;
+          velocities[iz] += (Math.random() - 0.5) * 0.08;
+        }
+
+        // Vibration mode: Imanes Oxidados
+        if (vibrationActive) {
+          velocities[ix] += (Math.random() - 0.5) * 0.09;
+          velocities[iy] += (Math.random() - 0.5) * 0.09;
+          velocities[iz] += (Math.random() - 0.5) * 0.09;
+        }
+
+        // Force alignment upward: Cuesta Arriba
+        if (forceAlignmentUpActive) {
+          velocities[iy] += 0.025;
+        }
+
+        // ── FLOCKING ──
+        if (target.flockingEnabled && (physics.separation !== 0 || physics.cohesion !== 0 || physics.alignment !== 0)) {
+          _sep.set(0, 0, 0);
+          _ali.set(0, 0, 0);
+          _coh.set(0, 0, 0);
+          let neighborCount = 0;
+
+          // Determine neighbor scope based on group mode
+          let jStart = 0, jEnd = PARTICLE_COUNT;
+          if (groupMode === 'shield') {
+            // Group A: static center (j only neighbors within group)
+            if (i < half) { jStart = 0; jEnd = half; }
+            else { jStart = half; jEnd = PARTICLE_COUNT; }
+          } else if (groupMode === 'dna') {
+            // Each group only flocks with itself
+            if (i < half) { jStart = 0; jEnd = half; }
+            else { jStart = half; jEnd = PARTICLE_COUNT; }
+          }
+
+          for (let j = jStart; j < jEnd; j++) {
+            if (j === i) continue;
+            _diff.set(
+              positions[j * 3] - _pos.x,
+              positions[j * 3 + 1] - _pos.y,
+              positions[j * 3 + 2] - _pos.z
+            );
+            const d = _diff.length();
+            if (d < NEIGHBOR_DIST && d > 0.0001) {
+              neighborCount++;
+              // Inverse-square separation force to prevent particles from collapsing into a single point
+              const safeD = Math.max(d, 0.15);
+              _tmp.copy(_diff).normalize().divideScalar(safeD * safeD);
+              _sep.sub(_tmp);
+              // Alignment
+              _ali.x += velocities[j * 3];
+              _ali.y += velocities[j * 3 + 1];
+              _ali.z += velocities[j * 3 + 2];
+              // Cohesion
+              _coh.x += positions[j * 3];
+              _coh.y += positions[j * 3 + 1];
+              _coh.z += positions[j * 3 + 2];
+            }
+          }
+
+          if (neighborCount > 0) {
+            _sep.divideScalar(neighborCount).multiplyScalar(effSep * 0.4);
+            _ali.divideScalar(neighborCount).sub(_vel).multiplyScalar(physics.alignment * 0.05);
+            _coh.divideScalar(neighborCount).sub(_pos).multiplyScalar(effCoh * 0.01);
+          }
+
+          velocities[ix] += _sep.x + _ali.x + _coh.x;
+          velocities[iy] += _sep.y + _ali.y + _coh.y;
+          velocities[iz] += _sep.z + _ali.z + _coh.z;
+        }
+
+        // Tecla "4" (El Escudo Protector / Cuidar al otro)
+        if (groupMode === 'shield') {
+          if (i < half) {
+            // Grupo A (El núcleo): cerca del centro (0,0,0) con respiración suave y repulsión mínima para no colapsar al centro
+            const dist = Math.sqrt(positions[ix] * positions[ix] + positions[iy] * positions[iy] + positions[iz] * positions[iz]) + 0.001;
+            const targetCoreR = 3.5;
+            let coreForce = (dist - targetCoreR) * 0.015;
+            if (dist < 1.2) {
+              coreForce -= (1.2 - dist) * 0.15; // Repulsión fuerte si se acercan demasiado al punto (0,0,0)
+            }
+            velocities[ix] -= (positions[ix] / dist) * coreForce;
+            velocities[iy] -= (positions[iy] / dist) * coreForce;
+            velocities[iz] -= (positions[iz] / dist) * coreForce;
+            velocities[ix] *= 0.96;
+            velocities[iy] *= 0.96;
+            velocities[iz] *= 0.96;
+          } else {
+            // Grupo B (El escudo): Órbita de Seguridad activa continua a radio exacto (15.0 unidades)
+            const dist = Math.sqrt(positions[ix] * positions[ix] + positions[iy] * positions[iy] + positions[iz] * positions[iz]) + 0.001;
+            const R_SHIELD = 15.0;
+
+            // Repulsión si dist < 15.0, atracción si dist > 15.0
+            const radialForce = (dist - R_SHIELD) * 0.035;
+            velocities[ix] -= (positions[ix] / dist) * radialForce;
+            velocities[iy] -= (positions[iy] / dist) * radialForce;
+            velocities[iz] -= (positions[iz] / dist) * radialForce;
+
+            // Fuerza tangencial activa (producto cruz) para rotación orbital rápida y continua alrededor del núcleo
+            const tangX = -positions[iz] / dist;
+            const tangZ =  positions[ix] / dist;
+            const tangY =  Math.sin(time * 1.5 + positions[ix] * 0.2) * 0.04;
+
+            velocities[ix] += tangX * 0.12;
+            velocities[iy] += tangY;
+            velocities[iz] += tangZ * 0.12;
+          }
+        }
+
+        // DNA mode: sinusoidal cross-flow
+        if (groupMode === 'dna') {
+          const groupSign = i < half ? 1 : -1;
+          velocities[ix] += Math.sin(time * 0.5 + positions[iy] * 0.2) * 0.005 * groupSign;
+          velocities[iz] += Math.cos(time * 0.5 + positions[iy] * 0.2) * 0.005 * groupSign;
+        }
+
+        // Split X mode: Renuncia (Grupo A a la izquierda -X, Grupo B a la derecha +X)
+        if (groupMode === 'splitX') {
+          if (i < half) {
+            velocities[ix] -= 0.06;
+          } else {
+            velocities[ix] += 0.06;
+          }
+        }
+
+        // Shield Bounce mode: El Escudo (Grupo A anillo cerrado central, Grupo B flujo hacia el centro pero rebota)
+        if (groupMode === 'shieldBounce') {
+          if (i < half) {
+            const dist = Math.sqrt(positions[ix] * positions[ix] + positions[iy] * positions[iy] + positions[iz] * positions[iz]) + 0.001;
+            const targetR = 4.0;
+            const force = (dist - targetR) * 0.05;
+            velocities[ix] -= (positions[ix] / dist) * force;
+            velocities[iy] -= (positions[iy] / dist) * force;
+            velocities[iz] -= (positions[iz] / dist) * force;
+            velocities[ix] *= 0.85;
+            velocities[iy] *= 0.85;
+            velocities[iz] *= 0.85;
+          } else {
+            const dist = Math.sqrt(positions[ix] * positions[ix] + positions[iy] * positions[iy] + positions[iz] * positions[iz]) + 0.001;
+            if (dist < 5.0) {
+              const push = (5.0 - dist) * 0.12;
+              velocities[ix] += (positions[ix] / dist) * push;
+              velocities[iy] += (positions[iy] / dist) * push;
+              velocities[iz] += (positions[iz] / dist) * push;
+            }
+          }
+        }
+
+        // ── FLOW FIELD ──
+        if (physics.flowMagnitude > 0.001 && flowFieldType !== 'none') {
+          const fv = getFlowVector(positions[ix], positions[iy], positions[iz], time);
+          velocities[ix] += fv.x * physics.flowMagnitude * 0.01;
+          velocities[iy] += fv.y * physics.flowMagnitude * 0.01;
+          velocities[iz] += fv.z * physics.flowMagnitude * 0.01;
+        }
+
+        // ── SPEED LIMIT ──
+        _vel.set(velocities[ix], velocities[iy], velocities[iz]);
+        const speed = _vel.length();
+        if (speed > effMax) {
+          _vel.multiplyScalar(effMax / speed);
+          velocities[ix] = _vel.x;
+          velocities[iy] = _vel.y;
+          velocities[iz] = _vel.z;
+        }
+
+        // ── INTEGRATE ──
+        positions[ix] += velocities[ix];
+        positions[iy] += velocities[iy];
+        positions[iz] += velocities[iz];
+
+        // ── BOUNDS WRAPPING ──
+        if (positions[ix] > BOUNDS) positions[ix] = -BOUNDS;
+        if (positions[ix] < -BOUNDS) positions[ix] = BOUNDS;
+        if (positions[iy] > BOUNDS) positions[iy] = -BOUNDS;
+        if (positions[iy] < -BOUNDS) positions[iy] = BOUNDS;
+        if (positions[iz] > BOUNDS) positions[iz] = -BOUNDS;
+        if (positions[iz] < -BOUNDS) positions[iz] = BOUNDS;
+
+        // ── AUDIO SCALE ──
+        const isEven = (i % 2 === 0);
+        let audioScale = 1.0;
+        if (isEven) {
+          // Bass reactive
+          audioScale = 1.0 + bassLevel * 1.8;
+        } else {
+          // High reactive + twinkle
+          const twinkle = 0.6 + 0.4 * Math.sin(time * 8 + i * 1.7);
+          audioScale = (1.0 + highLevel * 1.5) * twinkle;
+        }
+        scales[i] = THREE.MathUtils.lerp(scales[i], audioScale, 0.15);
+
+        // ── UPDATE INSTANCE MATRIX ──
+        const s = scales[i] * physics.globalOpacity;
+        dummy.makeScale(s, s, s);
+        dummy.setPosition(positions[ix], positions[iy], positions[iz]);
+        instancedMesh.setMatrixAt(i, dummy);
+      }
+
+      instancedMesh.instanceMatrix.needsUpdate = true;
+      particleMat.opacity = physics.globalOpacity;
+    }
+
+    // ───────────────────────────── LINES UPDATE ──────────────────────────
+    function updateLines() {
+      let lineIdx = 0;
+      const maxLines = LINE_MAX;
+
+      // Determine line color (Default: Violeta Magenta de la paleta de referencia)
+      let lr = currentLineColor ? currentLineColor[0] : 0.75;
+      let lg = currentLineColor ? currentLineColor[1] : 0.30;
+      let lb = currentLineColor ? currentLineColor[2] : 0.95;
+
+      if (currentState === 'El Latido') {
+        const beat = Math.pow(Math.max(0, Math.sin(clock.getElapsedTime() * 8.0)), 4);
+        lr = 1.0;
+        lg = 0.05 + beat * 0.35;
+        lb = 0.25 + beat * 0.55;
+      }
+
+      if (physics.lineOpacity > 0.005) {
+        const threshold = NEIGHBOR_DIST * 1.2;
+
+        for (let i = 0; i < PARTICLE_COUNT && lineIdx < maxLines; i++) {
+          for (let j = i + 1; j < PARTICLE_COUNT && lineIdx < maxLines; j++) {
+            const dx = positions[i * 3] - positions[j * 3];
+            const dy = positions[i * 3 + 1] - positions[j * 3 + 1];
+            const dz = positions[i * 3 + 2] - positions[j * 3 + 2];
+            const dist = dx * dx + dy * dy + dz * dz;
+
+            let effThreshold = threshold;
+            if (groupMode === 'shield') {
+              if (i < HALF_COUNT && j < HALF_COUNT) {
+                effThreshold = NEIGHBOR_DIST * 0.4; // Tighter threshold for core so it doesn't saturate
+              } else if (i < HALF_COUNT || j < HALF_COUNT) {
+                continue; // Avoid cluttering connections between core and shield
+              }
+            }
+
+            if (dist < effThreshold * effThreshold) {
+              const d = Math.sqrt(dist);
+              const alpha = 1.0 - (d / threshold);
+              const vi = lineIdx * 6;
+
+              linePositions[vi] = positions[i * 3];
+              linePositions[vi + 1] = positions[i * 3 + 1];
+              linePositions[vi + 2] = positions[i * 3 + 2];
+              linePositions[vi + 3] = positions[j * 3];
+              linePositions[vi + 4] = positions[j * 3 + 1];
+              linePositions[vi + 5] = positions[j * 3 + 2];
+
+              lineColors[vi] = lr * alpha;
+              lineColors[vi + 1] = lg * alpha;
+              lineColors[vi + 2] = lb * alpha;
+              lineColors[vi + 3] = lr * alpha;
+              lineColors[vi + 4] = lg * alpha;
+              lineColors[vi + 5] = lb * alpha;
+
+              lineIdx++;
+            }
+          }
+        }
+      }
+
+      // Zero-out remaining segments
+      for (let k = lineIdx * 6; k < linePositions.length; k++) {
+        linePositions[k] = 0;
+        lineColors[k] = 0;
+      }
+
+      lineGeo.setDrawRange(0, lineIdx * 2);
+      lineGeo.attributes.position.needsUpdate = true;
+      lineGeo.attributes.color.needsUpdate = true;
+
+      // Line opacity modulated by master volume
+      lineMat.opacity = physics.lineOpacity * (0.6 + masterVolume * 0.8);
+    }
+
+    // ───────────────────────────── SUN UPDATE ────────────────────────────
+    function updateSun(time) {
+      if (sunVisible) {
+        sunMat.opacity = THREE.MathUtils.lerp(sunMat.opacity, 0.95, 0.02);
+        sunLight.intensity = THREE.MathUtils.lerp(sunLight.intensity, 3.0 + bassLevel * 2, 0.05);
+        sunMesh.scale.setScalar(1.0 + Math.sin(time * 1.5) * 0.08 + bassLevel * 0.3);
+      } else {
+        sunMat.opacity = THREE.MathUtils.lerp(sunMat.opacity, 0, 0.03);
+        sunLight.intensity = THREE.MathUtils.lerp(sunLight.intensity, 0, 0.03);
+        if (sunMat.opacity < 0.01) sunMesh.visible = false;
+      }
+    }
+
+    // ───────────────────────────── CAMERA ────────────────────────────────
+    function updateCamera(time, dt) {
+      cameraAngle += cameraOrbitSpeed * dt;
+      const elev = cameraElevation + Math.sin(time * 0.1) * 0.15;
+      camera.position.x = Math.cos(cameraAngle) * cameraRadius * Math.cos(elev);
+      camera.position.y = Math.sin(elev) * cameraRadius * 0.5;
+      camera.position.z = Math.sin(cameraAngle) * cameraRadius * Math.cos(elev);
+      camera.lookAt(0, 0, 0);
+    }
+
+    // ───────────────────────────── BACKGROUND STARS (static) ────────────
+    const bgStarsGeo = new THREE.BufferGeometry();
+    const bgStarsCount = 2000;
+    const bgStarsPos = new Float32Array(bgStarsCount * 3);
+    for (let i = 0; i < bgStarsCount; i++) {
+      bgStarsPos[i * 3] = (Math.random() - 0.5) * 200;
+      bgStarsPos[i * 3 + 1] = (Math.random() - 0.5) * 200;
+      bgStarsPos[i * 3 + 2] = (Math.random() - 0.5) * 200;
+    }
+    bgStarsGeo.setAttribute('position', new THREE.BufferAttribute(bgStarsPos, 3));
+    const bgStarsMat = new THREE.PointsMaterial({
+      color: 0xccbbee,
+      size: 0.15,
+      transparent: true,
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    scene.add(new THREE.Points(bgStarsGeo, bgStarsMat));
+
+    // ───────────────────────────── POST EFFECTS (Bloom) ─────────────────
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      1.1,   // strength
+      0.5,   // radius
+      0.25   // threshold
+    );
+    composer.addPass(bloomPass);
+
+    // ───────────────────────────── RENDER LOOP ───────────────────────────
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const time = clock.getElapsedTime();
+
+      updateAudio();
+      updatePhysics(time, dt);
+      updateLines();
+      updateSun(time);
+      updateCamera(time, dt);
+
+      composer.render();
+    }
+
+    // ───────────────────────────── RESIZE ────────────────────────────────
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ───────────────────────────── AUDIO PROMPT ─────────────────────────
+    const prompt = document.getElementById('audio-prompt');
+
+    function handleStartClick() {
+      loadProjectAudioFile();
+      window.removeEventListener('click', handleStartClick);
+    }
+
+    if (prompt) prompt.addEventListener('click', handleStartClick);
+    window.addEventListener('click', handleStartClick, { once: true });
+
+    // ───────────────────────────── START ─────────────────────────────────
+    // Set initial state to "0" (Intro)
+    {
+      const preset = statePresets['0'];
+      target.separation = preset.separation;
+      target.cohesion = preset.cohesion;
+      target.alignment = preset.alignment;
+      target.flowMagnitude = preset.flowMagnitude;
+      target.maxSpeed = preset.maxSpeed;
+      target.globalOpacity = preset.globalOpacity;
+      target.lineOpacity = preset.lineOpacity;
+      target.flockingEnabled = preset.flockingEnabled;
+      target.linesEnabled = preset.linesEnabled;
+      flowFieldType = preset.flowType;
+      groupMode = preset.groupMode;
+      physics.separation = 0;
+      physics.cohesion = 0;
+      physics.alignment = 0;
+      physics.flowMagnitude = 0;
+      physics.maxSpeed = 0;
+    }
+
+    animate();
+
+    console.log('%c🌌 CONSTELACIÓN VJ TOOL — Ready', 'color: #88aaff; font-size: 14px; font-weight: bold;');
+    console.log('%cTeclas: 0-9, Q, W, E, R, T', 'color: #6688aa; font-size: 12px;');
+
+  </script>
+</body>
+
+</html>
