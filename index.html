@@ -919,6 +919,14 @@
         globalOpacity: 0, lineOpacity: 0, flockingEnabled: true, linesEnabled: true,
         flowType: 'radial', groupMode: 'none', sunVisible: false,
       },
+      'y': { // Incertidumbre / Falsos Contactos
+        name: 'Incertidumbre',
+        separation: 0, cohesion: 0, alignment: 0,
+        flowMagnitude: 0, maxSpeed: 0.002,
+        globalOpacity: 0.15, lineOpacity: 0.8, flockingEnabled: false, linesEnabled: true,
+        flowType: 'none', groupMode: 'none', sunVisible: false,
+        lerpOverride: 0.08,
+      },
       'r': { // No puedo sin vos
         name: 'No puedo sin vos',
         separation: 0, cohesion: 0, alignment: 0,
@@ -987,10 +995,11 @@
       },
       'j': { // El Escudo
         name: 'El Escudo',
-        separation: 1.2, cohesion: 1.5, alignment: 1.0,
-        flowMagnitude: 2.0, maxSpeed: 0.2,
+        separation: 1.2, cohesion: 0, alignment: 1.0,
+        flowMagnitude: 1.5, maxSpeed: 0.16,
         globalOpacity: 1, lineOpacity: 0.5, flockingEnabled: true, linesEnabled: true,
         flowType: 'radialIn', groupMode: 'shieldBounce', sunVisible: false,
+        lerpOverride: 0.015,
       },
       'k': { // Cuesta Arriba
         name: 'Cuesta Arriba',
@@ -1352,25 +1361,50 @@
           }
         }
 
-        // Shield Bounce mode: El Escudo (Grupo A anillo cerrado central, Grupo B flujo hacia el centro pero rebota)
+        // Shield Bounce mode: Tecla "J" (El Escudo / Rebotes armónicos)
         if (groupMode === 'shieldBounce') {
+          const dist = Math.sqrt(positions[ix] * positions[ix] + positions[iy] * positions[iy] + positions[iz] * positions[iz]) + 0.0001;
+
           if (i < half) {
-            const dist = Math.sqrt(positions[ix] * positions[ix] + positions[iy] * positions[iy] + positions[iz] * positions[iz]) + 0.001;
-            const targetR = 4.0;
-            const force = (dist - targetR) * 0.05;
-            velocities[ix] -= (positions[ix] / dist) * force;
-            velocities[iy] -= (positions[iy] / dist) * force;
-            velocities[iz] -= (positions[iz] / dist) * force;
-            velocities[ix] *= 0.85;
-            velocities[iy] *= 0.85;
-            velocities[iz] *= 0.85;
+            // ── GRUPO A (El Escudo) ──
+            // Órbita fluida y armónica en R = 10.0 unidades (corrección suave)
+            const targetR = 10.0;
+            const radialCorrection = (dist - targetR) * 0.04;
+            velocities[ix] -= (positions[ix] / dist) * radialCorrection;
+            velocities[iy] -= (positions[iy] / dist) * radialCorrection;
+            velocities[iz] -= (positions[iz] / dist) * radialCorrection;
+
+            // Fuerza tangencial moderada y fluida para rotación orbital elegante
+            const tangX = -positions[iz] / dist;
+            const tangZ = positions[ix] / dist;
+            const tangY = Math.sin(time * 1.5 + positions[ix] * 0.1) * 0.04;
+
+            velocities[ix] += tangX * 0.15;
+            velocities[iy] += tangY;
+            velocities[iz] += tangZ * 0.15;
+
+            // Amortiguación fluida para mantener el movimiento ordenado
+            velocities[ix] *= 0.96;
+            velocities[iy] *= 0.96;
+            velocities[iz] *= 0.96;
           } else {
-            const dist = Math.sqrt(positions[ix] * positions[ix] + positions[iy] * positions[iy] + positions[iz] * positions[iz]) + 0.001;
-            if (dist < 5.0) {
-              const push = (5.0 - dist) * 0.12;
-              velocities[ix] += (positions[ix] / dist) * push;
-              velocities[iy] += (positions[iy] / dist) * push;
-              velocities[iz] += (positions[iz] / dist) * push;
+            // ── GRUPO B (Los Proyectiles) ──
+            // Flujo hacia el centro suave y armónico
+            const inwardForce = 0.025;
+            velocities[ix] -= (positions[ix] / dist) * inwardForce;
+            velocities[iy] -= (positions[iy] / dist) * inwardForce;
+            velocities[iz] -= (positions[iz] / dist) * inwardForce;
+
+            // REBOTE / DEFLEXIÓN ELÁSTICA SUAVE
+            // Si el proyectil entra en la zona del escudo (dist <= 11.0)
+            if (dist <= 11.0) {
+              const bounceFactor = 0.8;
+              const outwardImpulse = 0.35;
+
+              // Reorientación elástica y fluida hacia los bordes
+              velocities[ix] = -velocities[ix] * bounceFactor + (positions[ix] / dist) * outwardImpulse;
+              velocities[iy] = -velocities[iy] * bounceFactor + (positions[iy] / dist) * outwardImpulse;
+              velocities[iz] = -velocities[iz] * bounceFactor + (positions[iz] / dist) * outwardImpulse;
             }
           }
         }
@@ -1386,8 +1420,9 @@
         // ── SPEED LIMIT ──
         _vel.set(velocities[ix], velocities[iy], velocities[iz]);
         const speed = _vel.length();
-        if (speed > effMax) {
-          _vel.multiplyScalar(effMax / speed);
+        const maxSpeedCap = (groupMode === 'shieldBounce') ? (i < half ? 0.30 : 0.45) : effMax;
+        if (speed > maxSpeedCap) {
+          _vel.multiplyScalar(maxSpeedCap / speed);
           velocities[ix] = _vel.x;
           velocities[iy] = _vel.y;
           velocities[iz] = _vel.z;
@@ -1434,6 +1469,7 @@
     function updateLines() {
       let lineIdx = 0;
       const maxLines = LINE_MAX;
+      const isFlicker = (currentState === 'Incertidumbre');
 
       // Determine line color (Default: Violeta Magenta de la paleta de referencia)
       let lr = currentLineColor ? currentLineColor[0] : 0.75;
@@ -1451,6 +1487,9 @@
         const threshold = NEIGHBOR_DIST * 1.2;
 
         for (let i = 0; i < PARTICLE_COUNT && lineIdx < maxLines; i++) {
+          // En estado Incertidumbre, descarta partículas aleatoriamente para crear chispas fragmentadas
+          if (isFlicker && Math.random() > 0.35) continue;
+
           for (let j = i + 1; j < PARTICLE_COUNT && lineIdx < maxLines; j++) {
             const dx = positions[i * 3] - positions[j * 3];
             const dy = positions[i * 3 + 1] - positions[j * 3 + 1];
@@ -1464,11 +1503,22 @@
               } else if (i < HALF_COUNT || j < HALF_COUNT) {
                 continue; // Avoid cluttering connections between core and shield
               }
+            } else if (isFlicker) {
+              // Fluctúa violentamente el umbral de distancia entre 0 y 1.6x usando azar de alta frecuencia
+              effThreshold = NEIGHBOR_DIST * (Math.random() < 0.25 ? Math.random() * 1.6 : 0.15);
             }
 
             if (dist < effThreshold * effThreshold) {
               const d = Math.sqrt(dist);
-              const alpha = 1.0 - (d / threshold);
+              let alpha = 1.0 - (d / (effThreshold || 1));
+
+              if (isFlicker) {
+                // Parpadeo eléctrico de alta frecuencia en la opacidad de líneas individuales (falsos contactos / chispas)
+                alpha *= (Math.random() > 0.35 ? Math.random() : 0.0);
+              }
+
+              if (alpha <= 0.005) continue;
+
               const vi = lineIdx * 6;
 
               linePositions[vi] = positions[i * 3];
@@ -1478,12 +1528,17 @@
               linePositions[vi + 4] = positions[j * 3 + 1];
               linePositions[vi + 5] = positions[j * 3 + 2];
 
-              lineColors[vi] = lr * alpha;
-              lineColors[vi + 1] = lg * alpha;
-              lineColors[vi + 2] = lb * alpha;
-              lineColors[vi + 3] = lr * alpha;
-              lineColors[vi + 4] = lg * alpha;
-              lineColors[vi + 5] = lb * alpha;
+              // Si es estado Incertidumbre, destellos cian / blanco eléctrico
+              const curLr = isFlicker ? (0.6 + Math.random() * 0.4) : lr;
+              const curLg = isFlicker ? (0.85 + Math.random() * 0.15) : lg;
+              const curLb = isFlicker ? 1.0 : lb;
+
+              lineColors[vi] = curLr * alpha;
+              lineColors[vi + 1] = curLg * alpha;
+              lineColors[vi + 2] = curLb * alpha;
+              lineColors[vi + 3] = curLr * alpha;
+              lineColors[vi + 4] = curLg * alpha;
+              lineColors[vi + 5] = curLb * alpha;
 
               lineIdx++;
             }
@@ -1501,8 +1556,12 @@
       lineGeo.attributes.position.needsUpdate = true;
       lineGeo.attributes.color.needsUpdate = true;
 
-      // Line opacity modulated by master volume
-      lineMat.opacity = physics.lineOpacity * (0.6 + masterVolume * 0.8);
+      // Line opacity modulated by master volume and violent flicker if in Incertidumbre state
+      if (isFlicker) {
+        lineMat.opacity = physics.lineOpacity * (Math.random() < 0.65 ? Math.random() * 0.95 : 0.05);
+      } else {
+        lineMat.opacity = physics.lineOpacity * (0.6 + masterVolume * 0.8);
+      }
     }
 
     // ───────────────────────────── SUN UPDATE ────────────────────────────

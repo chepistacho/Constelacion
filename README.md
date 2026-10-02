@@ -82,6 +82,7 @@ Este proyecto utiliza **HTML5/WebGL estático** y librerías CDN por lo que no r
 | **`Q`** | **Agradecimiento - El Halo** | Órbita concéntrica en espiral suave (halo dorado a r=14.0) sin tocar bordes |
 | **`W`** | **Amarga realidad** | Gravedad vertical hacia abajo (caída libre de estrellas) |
 | **`E`** | **Alejarse** | Expansión centrífuga suave con desvanecimiento gradual de opacidad |
+| **`Y`** | **Incertidumbre / Falsos Contactos** | Frena repulsión (vel ≈ 0), opacidad tenue de partículas y parpadeo/chispas eléctricas de alta frecuencia en líneas |
 | **`R`** | **No puedo sin vos** | Cero cohesión/alineación, movimiento caótico/browniano de alta velocidad |
 | **`T`** | **Outro** | Congelamiento progresivo de velocidades y fade-out total a negro |
 | **`A`** | **Frío Pasado** | Velocidad casi en 0, Flow Field estático, líneas azul hielo congeladas |
@@ -90,7 +91,7 @@ Este proyecto utiliza **HTML5/WebGL estático** y librerías CDN por lo que no r
 | **`F`** | **Renuncia** | Fuerzas opuestas empujan Grupo A a la izq (-X) y Grupo B a la der (+X), vaciando el centro |
 | **`G`** | **Arrepentimiento** | Flow Field diagonal pesado (-X, -Y), velocidad baja y alta cohesión con alineación 0 |
 | **`H`** | **Imanes Oxidados** | Cohesión y separación altísimas e iguales, generando temblor/vibración constante |
-| **`J`** | **El Escudo** | Grupo A forma un anillo cerrado central; Grupo B fluye al centro pero rebota contra el escudo |
+| **`J`** | **El Escudo / Rebotes Armónicos** | Órbita suave y elegante del Grupo A (r=10); Grupo B fluye armoniosamente al centro y rebota elásticamente al tocar el escudo |
 | **`K`** | **Cuesta Arriba** | Flow Field hacia abajo (-Y) pero alineación estrictamente hacia arriba (+Y), subiendo milimétricamente |
 | **`Z`** | **El Latido** | Flow Field radial pulsante con pulso senoidal y flashes rojo/magenta en las líneas ("lub-dub") |
 | **`X`** | **El Borrón** | Cohesión 0, ráfaga horizontal extrema (+X/-X) que barre y rompe la red |
