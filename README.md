@@ -46,13 +46,21 @@ Este proyecto utiliza **HTML5/WebGL estático** y librerías CDN por lo que no r
 3. En **Source**, selecciona **GitHub Actions**.
 4. ¡Listo! Cada vez que hagas `git push`, GitHub desplegará automáticamente la aplicación.
 
-### Opción B: Despliegue Directo desde la Rama Main
+### Opción B: Despliegue Manual con NPM (`gh-pages`)
+
+1. Asegúrate de estar autenticado en Git y ejecuta:
+   ```bash
+   npm run deploy
+   ```
+2. Este comando publicará automáticamente los archivos estáticos en la rama `gh-pages` de tu repositorio.
+
+### Opción C: Despliegue Directo desde la Rama Main / Master
 
 1. Sube el código a GitHub.
 2. En tu repositorio, ve a **Settings** > **Pages**.
 3. En **Source**, selecciona `Deploy from a branch`.
-4. Elige la rama `main` y carpeta `/ (root)`. Guarda los cambios.
-5. Tu sitio estará en vivo en: `https://TU_USUARIO.github.io/TU_REPOSITORIO/`.
+4. Elige la rama `main` (o `master`) y la carpeta `/ (root)`. Guarda los cambios.
+5. Tu sitio estará disponible en: `https://TU_USUARIO.github.io/TU_REPOSITORIO/`.
 
 ---
 
