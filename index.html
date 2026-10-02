@@ -718,19 +718,19 @@
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       if (i < halfCount) {
         // Grupo A: Rosa Magenta Resplandeciente (Pico de la imagen)
-        instanceColors[i * 3]     = 0.95 + Math.random() * 0.05; // R
+        instanceColors[i * 3] = 0.95 + Math.random() * 0.05; // R
         instanceColors[i * 3 + 1] = 0.40 + Math.random() * 0.35; // G
         instanceColors[i * 3 + 2] = 0.80 + Math.random() * 0.20; // B
       } else {
         // Grupo B: Violeta Eléctrico / Púrpura Profundo (Masa cósmica)
-        instanceColors[i * 3]     = 0.45 + Math.random() * 0.25; // R
+        instanceColors[i * 3] = 0.45 + Math.random() * 0.25; // R
         instanceColors[i * 3 + 1] = 0.10 + Math.random() * 0.20; // G
         instanceColors[i * 3 + 2] = 0.90 + Math.random() * 0.10; // B
       }
 
       // Toques de lavanda estrellado para partículas impares
       if (i % 2 !== 0 && Math.random() > 0.3) {
-        instanceColors[i * 3]     = 0.85 + Math.random() * 0.15; // R
+        instanceColors[i * 3] = 0.85 + Math.random() * 0.15; // R
         instanceColors[i * 3 + 1] = 0.70 + Math.random() * 0.25; // G
         instanceColors[i * 3 + 2] = 1.0;                        // B
       }
@@ -759,11 +759,11 @@
     const spanZ = BOUNDS * 1.2;
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
-      positions[i * 3]     = (Math.random() - 0.5) * spanX;
+      positions[i * 3] = (Math.random() - 0.5) * spanX;
       positions[i * 3 + 1] = (Math.random() - 0.5) * spanY;
       positions[i * 3 + 2] = (Math.random() - 0.5) * spanZ;
 
-      velocities[i * 3]     = (Math.random() - 0.5) * 0.1;
+      velocities[i * 3] = (Math.random() - 0.5) * 0.1;
       velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
       velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
 
@@ -1313,8 +1313,8 @@
 
             // Fuerza tangencial activa (producto cruz) para rotación orbital rápida y continua alrededor del núcleo
             const tangX = -positions[iz] / dist;
-            const tangZ =  positions[ix] / dist;
-            const tangY =  Math.sin(time * 1.5 + positions[ix] * 0.2) * 0.04;
+            const tangZ = positions[ix] / dist;
+            const tangY = Math.sin(time * 1.5 + positions[ix] * 0.2) * 0.04;
 
             velocities[ix] += tangX * 0.12;
             velocities[iy] += tangY;
