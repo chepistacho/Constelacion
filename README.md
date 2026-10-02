@@ -7,12 +7,11 @@ Instrumento visual interactivo en tiempo real desarrollado con **Three.js**, fí
 ## 🎵 Funcionamiento de UI y Audio
 
 1. **Pantalla Limpia Inicial**: Al cargar la página solo verás la pantalla negra con el mensaje de inicio. La interfaz de monitoreo (`lil-gui`), la barra de progreso y la barra de atajos están ocultas por defecto.
-2. **Inicio por Click**: Al hacer click en cualquier parte de la pantalla:
+2. **Inicio por Click (Show Limpio)**: Al hacer click en la pantalla:
    - Se inicia la música `Constelacion.mp3`.
    - Se activa la física de movimiento de partículas.
-   - **Aparece la barra de progreso interactiva** en la parte inferior para seguir el tiempo del tema y saltar a cualquier punto durante los ensayos.
-   - **Aparece el panel flotante de monitoreo** (`lil-gui`) en la esquina superior derecha con indicador de tiempo.
-3. **Modo Performance (Tecla `P`)**: Presiona la tecla **`P`** en cualquier momento de la interpretación para ocultar / mostrar instantáneamente toda la interfaz visual (`lil-gui`, barra de progreso y texto de atajos) para un show en vivo 100% limpio.
+   - **La interfaz permanece 100% limpia y oculta por defecto** para una experiencia inmersiva inmediata.
+3. **Modo Performance / Monitoreo (Tecla `P`)**: Presiona la tecla **`P`** en cualquier momento para mostrar / ocultar instantáneamente toda la interfaz visual (panel `lil-gui`, barra de progreso interactiva y texto de atajos).
 
 ---
 
@@ -80,7 +79,7 @@ Este proyecto utiliza **HTML5/WebGL estático** y librerías CDN por lo que no r
 | **`8`** | **Hacer daño** | Separación negativa; los boids colisionan bruscamente entre sí |
 | **`9`** | **Volver a creer** | Transición lenta, aparición de líneas doradas cálidas |
 | **`Q`** | **Agradecimiento - El Halo** | Órbita concéntrica en espiral suave (halo dorado a r=14.0) sin tocar bordes |
-| **`W`** | **Amarga realidad** | Gravedad vertical hacia abajo (caída libre de estrellas) |
+| **`W`** | **Amarga realidad** | Impulso de repulsión masivo y gravedad vertical hacia abajo (caída libre y dispersa de estrellas individuales) |
 | **`E`** | **Alejarse** | Expansión centrífuga suave con desvanecimiento gradual de opacidad |
 | **`Y`** | **Incertidumbre / Falsos Contactos** | Frena repulsión (vel ≈ 0), opacidad tenue de partículas y parpadeo/chispas eléctricas de alta frecuencia en líneas |
 | **`R`** | **No puedo sin vos** | Cero cohesión/alineación, movimiento caótico/browniano de alta velocidad |
